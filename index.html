@@ -46,11 +46,10 @@
             <div class="flex gap-2">
               <button onclick="exportExcel()" class="px-4 py-2 bg-green-600 text-white rounded-xl text-[10px] font-bold hover:bg-green-700 transition uppercase">Export Excel</button>
               <button onclick="window.print()" class="px-4 py-2 bg-red-600 text-white rounded-xl text-[10px] font-bold hover:bg-red-700 transition uppercase">Save PDF</button>
-              
-              <select id="chart-machine" onchange="loadChart()" class="bg-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold outline-none">
-                <option value="all">ทุกเครื่องพิมพ์</option>
+              <select id="chart-type" onchange="loadChart()" class="bg-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold outline-none">
+                <option value="line">กราฟเส้น</option>
+                <option value="bar">กราฟแท่ง</option>
               </select>
-
               <select id="timeframe" onchange="loadChart()" class="bg-slate-100 rounded-xl px-4 py-2 text-[10px] font-bold outline-none">
                 <option value="day">รายวัน (7 วันล่าสุด)</option><option value="month">รายเดือน</option><option value="year">รายปี</option>
               </select>
@@ -81,7 +80,7 @@
   <div id="toast-container" class="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-3 pointer-events-none"></div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwNONVyNvb-t0STCop_MmGj5k0QJGKTuY_f0Y_GYzKVXIAPRBs-z0p0sXnSIVEmTacV/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbxNONVyNvb-t0STCop_MmGj5k0QJGKTuY_f0Y_GYzKVXIAPRBs-z0p0sXnSIVEmTacV/exec"; 
     let inventory = [];
     let currentMachine = 'all', currentModalTask = null, chartInstance = null;
 
@@ -179,7 +178,7 @@
       const resp = await fetch(`${API_URL}?action=getLogs&t=${Date.now()}`);
       const logs = await resp.json();
       const timeframe = document.getElementById('timeframe').value, filter = document.getElementById('chart-filter').value;
-      const selectedMachine = document.getElementById('chart-machine').value;
+      const chartType = document.getElementById('chart-type').value; // ดึงประเภทกราฟ
       const grouped = {};
       
       let labels = [];
@@ -194,13 +193,6 @@
       }
 
       logs.slice(1).forEach(l => {
-        // ดึงข้อมูลเครื่องพิมพ์จากรายการสินค้าปัจจุบันเพื่อนำมาคัดกรองข้อมูลกราฟ
-        const itemInfo = inventory.find(i => i.id === l[1]);
-        const machineName = itemInfo ? itemInfo.machine : 'unknown';
-
-        // เงื่อนไขคัดกรองสรุปแยกตามเครื่องพิมพ์ตามสั่ง
-        if (selectedMachine !== 'all' && selectedMachine !== machineName) return;
-
         const d = new Date(l[0]); let key = d.toLocaleDateString();
         if (timeframe === 'month') key = `${d.getMonth()+1}/${d.getFullYear()}`;
         if (timeframe === 'year') key = d.getFullYear();
@@ -214,11 +206,11 @@
       if (timeframe !== 'day') labels = Object.keys(grouped).slice(-10);
       
       const ds = [];
-      if (filter !== 'OUT') ds.push({ label: 'รับเข้า', data: labels.map(l=>grouped[l].IN), borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4 });
-      if (filter !== 'IN') ds.push({ label: 'เบิกออก', data: labels.map(l=>grouped[l].OUT), borderColor: '#102a96', backgroundColor: 'rgba(16,42,150,0.1)', fill: true, tension: 0.4 });
+      if (filter !== 'OUT') ds.push({ label: 'รับเข้า', data: labels.map(l=>grouped[l].IN), borderColor: '#22c55e', backgroundColor: chartType === 'bar' ? '#22c55e' : 'rgba(34,197,94,0.1)', fill: true, tension: 0.4 });
+      if (filter !== 'IN') ds.push({ label: 'เบิกออก', data: labels.map(l=>grouped[l].OUT), borderColor: '#102a96', backgroundColor: chartType === 'bar' ? '#102a96' : 'rgba(16,42,150,0.1)', fill: true, tension: 0.4 });
       
       if (chartInstance) chartInstance.destroy();
-      chartInstance = new Chart(document.getElementById('mainChart'), { type: 'line', data: { labels, datasets: ds }, options: { responsive: true, maintainAspectRatio: false }});
+      chartInstance = new Chart(document.getElementById('mainChart'), { type: chartType, data: { labels, datasets: ds }, options: { responsive: true, maintainAspectRatio: false }});
     }
 
     async function exportExcel() {
@@ -237,13 +229,6 @@
         <button onclick="changeView('machine', '${m}')" id="nav-${m.replace(/\s/g, '')}" class="nav-btn w-full flex items-center gap-3 p-4 rounded-xl hover:bg-white/5 transition opacity-60 text-xs">
           <i data-lucide="monitor" class="w-4 h-4"></i> ${m}
         </button>`).join('');
-
-      // อัปเดตรายชื่อเครื่องพิมพ์ใน Dropdown ของหน้าสรุปกราฟโดยอัตโนมัติ
-      const chartMachineSelect = document.getElementById('chart-machine');
-      if (chartMachineSelect) {
-        chartMachineSelect.innerHTML = '<option value="all">ทุกเครื่องพิมพ์</option>' + 
-          list.map(m => `<option value="${m}">${m}</option>`).join('');
-      }
       lucide.createIcons();
     }
     function closeModal() { document.getElementById('modal').classList.remove('modal-show'); }
